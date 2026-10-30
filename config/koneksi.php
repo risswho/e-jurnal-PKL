@@ -3,7 +3,7 @@
 $host = "localhost";
 $username = "root";
 $password = "";
-$database = "e_jurnal_smk";
+$database = "jurnal";
 
 $conn = mysqli_connect($host, $username, $password, $database);
 

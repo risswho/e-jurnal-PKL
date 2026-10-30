@@ -3,16 +3,14 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'siswa') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('siswa');
 
 
 $id_siswa = $_SESSION['id_siswa'];
 
-$tanggal_kegiatan = $_POST['tanggal_kegiatan'] ?? '';
+// Tanggal kegiatan diisi otomatis dari waktu server saat penginputan agar siswa tidak bisa memanipulasi tanggal
+$tanggal_kegiatan = date('Y-m-d');
 $nama_dudi = $_POST['nama_dudi'] ?? '';
 $pembimbing = $_POST['pembimbing'] ?? '';
 $kegiatan_magang = $_POST['kegiatan_magang'] ?? '';
@@ -21,12 +19,12 @@ $keterangan = $_POST['keterangan'] ?? '';
 
 // Validasi input
 if (
-    empty($tanggal_kegiatan) ||
     empty($nama_dudi) ||
     empty($pembimbing) ||
     empty($kegiatan_magang)
 ) {
-    die("Data jurnal wajib diisi.");
+    header("Location: tambah_jurnal.php?error=" . urlencode("Data jurnal wajib diisi."));
+    exit;
 }
 
 
@@ -42,12 +40,14 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
 
     // Cek error upload
     if ($foto['error'] !== UPLOAD_ERR_OK) {
-        die("Foto gagal diupload.");
+        header("Location: tambah_jurnal.php?error=" . urlencode("Foto gagal diupload."));
+        exit;
     }
 
-    // Batas ukuran 2 MB
-    if ($foto['size'] > 2 * 1024 * 1024) {
-        die("Ukuran foto maksimal 2 MB.");
+    // Batas ukuran 20 MB
+    if ($foto['size'] > 20 * 1024 * 1024) {
+        header("Location: tambah_jurnal.php?error=" . urlencode("Ukuran foto maksimal 20 MB."));
+        exit;
     }
 
     // Ekstensi yang diperbolehkan
@@ -59,7 +59,8 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
     );
 
     if (!in_array($ekstensi, $ekstensi_diperbolehkan)) {
-        die("Format foto harus JPG, JPEG, atau PNG.");
+        header("Location: tambah_jurnal.php?error=" . urlencode("Format foto harus JPG, JPEG, atau PNG."));
+        exit;
     }
 
     // Buat nama file unik
@@ -67,10 +68,15 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
 
     $folder_upload = "../uploads/jurnal/";
 
+    if (!is_dir($folder_upload)) {
+        mkdir($folder_upload, 0777, true);
+    }
+
     $tujuan = $folder_upload . $nama_foto;
 
     if (!move_uploaded_file($foto['tmp_name'], $tujuan)) {
-        die("Foto gagal disimpan.");
+        header("Location: tambah_jurnal.php?error=" . urlencode("Foto gagal disimpan."));
+        exit;
     }
 }
 
@@ -123,5 +129,5 @@ if (mysqli_stmt_execute($stmt)) {
         }
     }
 
-    die("Jurnal gagal disimpan: " . mysqli_error($conn));
+    abort("Gagal menyimpan", "Jurnal gagal disimpan. Silakan coba lagi.", "tambah_jurnal.php");
 }

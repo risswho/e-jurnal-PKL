@@ -3,11 +3,8 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'siswa') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('siswa');
 
 
 $id_siswa = $_SESSION['id_siswa'];
@@ -36,9 +33,7 @@ $result = mysqli_stmt_get_result($stmt);
 $jurnal = mysqli_fetch_assoc($result);
 
 
-if (!$jurnal) {
-    die("Jurnal tidak ditemukan.");
-}
+if (!$jurnal) abort("Jurnal tidak ditemukan", "Data jurnal tidak ada atau bukan milik Anda.", "dashboard.php");
 
 
 // Hapus foto jika ada

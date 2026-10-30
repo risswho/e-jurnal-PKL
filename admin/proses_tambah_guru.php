@@ -3,11 +3,8 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('admin');
 
 
 $nip = trim($_POST['nip'] ?? '');
@@ -21,7 +18,8 @@ if (
     empty($nama_guru) ||
     empty($password)
 ) {
-    die("Semua data wajib diisi.");
+    header("Location: tambah_guru.php?error=" . urlencode("Semua data wajib diisi."));
+    exit;
 }
 
 
@@ -44,7 +42,8 @@ $resultCek = mysqli_stmt_get_result($stmtCek);
 
 if (mysqli_num_rows($resultCek) > 0) {
 
-    die("NIP sudah terdaftar.");
+    header("Location: tambah_guru.php?error=" . urlencode("NIP sudah terdaftar."));
+    exit;
 
 }
 
@@ -78,14 +77,12 @@ mysqli_stmt_bind_param(
 
 if (mysqli_stmt_execute($stmt)) {
 
-    header("Location: guru.php?success=1");
+    header("Location: guru.php?success=" . urlencode("Data guru berhasil ditambahkan."));
     exit;
 
 } else {
 
-    die(
-        "Gagal menambahkan guru: "
-        . mysqli_error($conn)
-    );
+    header("Location: tambah_guru.php?error=" . urlencode("Gagal menambahkan guru. Coba lagi."));
+    exit;
 
 }

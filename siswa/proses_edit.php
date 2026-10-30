@@ -3,11 +3,8 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'siswa') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('siswa');
 
 
 $id_siswa = $_SESSION['id_siswa'];
@@ -28,7 +25,8 @@ if (
     empty($pembimbing) ||
     empty($kegiatan_magang)
 ) {
-    die("Data jurnal belum lengkap.");
+    header("Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Data jurnal belum lengkap."));
+    exit;
 }
 
 
@@ -46,9 +44,7 @@ $result = mysqli_stmt_get_result($stmt);
 $jurnal_lama = mysqli_fetch_assoc($result);
 
 
-if (!$jurnal_lama) {
-    die("Jurnal tidak ditemukan.");
-}
+if (!$jurnal_lama) abort("Jurnal tidak ditemukan", "Data jurnal tidak ada atau bukan milik Anda.", "dashboard.php");
 
 
 $nama_foto = $jurnal_lama['foto'];
@@ -67,13 +63,15 @@ if (
 
 
     if ($foto['error'] !== UPLOAD_ERR_OK) {
-        die("Foto gagal diupload.");
+        header("Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Foto gagal diupload."));
+        exit;
     }
 
 
-    // Maksimal 2 MB
-    if ($foto['size'] > 2 * 1024 * 1024) {
-        die("Ukuran foto maksimal 2 MB.");
+    // Maksimal 20 MB
+    if ($foto['size'] > 20 * 1024 * 1024) {
+        header("Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Ukuran foto maksimal 20 MB."));
+        exit;
     }
 
 
@@ -93,7 +91,8 @@ if (
 
 
     if (!in_array($ekstensi, $ekstensi_diperbolehkan)) {
-        die("Format foto harus JPG, JPEG, atau PNG.");
+        header("Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Format foto harus JPG, JPEG, atau PNG."));
+        exit;
     }
 
 
@@ -114,7 +113,8 @@ if (
         $tujuan
     )) {
 
-        die("Foto gagal disimpan.");
+        header("Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Foto gagal disimpan."));
+        exit;
 
     }
 
@@ -182,8 +182,8 @@ if (mysqli_stmt_execute($stmt_update)) {
 
 } else {
 
-    die(
-        "Jurnal gagal diperbarui: "
-        . mysqli_error($conn)
+    header(
+        "Location: edit_jurnal.php?id=" . (int)$id_jurnal . "&error=" . urlencode("Jurnal gagal diperbarui. Coba lagi.")
     );
+    exit;
 }

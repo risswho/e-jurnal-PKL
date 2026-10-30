@@ -3,17 +3,12 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('admin');
 
 $id_siswa = $_GET['id'] ?? '';
 
-if (empty($id_siswa)) {
-    die("ID siswa tidak ditemukan.");
-}
+if (empty($id_siswa)) abort("ID tidak valid", "ID siswa tidak ditemukan.", "siswa.php");
 
 $id_siswa = (int) $id_siswa;
 
@@ -50,33 +45,33 @@ while ($data = mysqli_fetch_assoc($resultFoto)) {
 }
 
 
-// Ambil foto bimbingan
-$queryFotoBimbingan = "SELECT foto
-                       FROM bimbingan
+// Ambil foto monitoring
+$queryFotomonitoring = "SELECT foto
+                       FROM monitoring
                        WHERE id_siswa = ?";
 
-$stmtFotoBimbingan = mysqli_prepare(
+$stmtFotomonitoring = mysqli_prepare(
     $conn,
-    $queryFotoBimbingan
+    $queryFotomonitoring
 );
 
 mysqli_stmt_bind_param(
-    $stmtFotoBimbingan,
+    $stmtFotomonitoring,
     "i",
     $id_siswa
 );
 
-mysqli_stmt_execute($stmtFotoBimbingan);
+mysqli_stmt_execute($stmtFotomonitoring);
 
-$resultFotoBimbingan = mysqli_stmt_get_result(
-    $stmtFotoBimbingan
+$resultFotomonitoring = mysqli_stmt_get_result(
+    $stmtFotomonitoring
 );
 
-while ($data = mysqli_fetch_assoc($resultFotoBimbingan)) {
+while ($data = mysqli_fetch_assoc($resultFotomonitoring)) {
 
     if (!empty($data['foto'])) {
 
-        $file = "../uploads/bimbingan/" . $data['foto'];
+        $file = "../uploads/monitoring/" . $data['foto'];
 
         if (file_exists($file)) {
             unlink($file);
@@ -106,6 +101,6 @@ if (mysqli_stmt_execute($stmt)) {
 
 } else {
 
-    die("Gagal menghapus siswa: " . mysqli_error($conn));
+    abort("Gagal menghapus", "Gagal menghapus siswa. Coba lagi.", "siswa.php");
 
 }

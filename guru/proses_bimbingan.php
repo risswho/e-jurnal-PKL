@@ -3,18 +3,27 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('guru');
 
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'guru') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+$id_guru = (int) ($_SESSION['id_guru'] ?? 0);
+if ($id_guru <= 0) { header("Location: ../auth/login.php"); exit; }
 
-$id_guru = $_SESSION['id_guru'];
-
-$id_siswa = $_POST['id_siswa'] ?? '';
-$tanggal_bimbingan = $_POST['tanggal_bimbingan'] ?? '';
+$id_siswa = (int) ($_POST['id_siswa'] ?? 0);
+$tanggal_monitoring = $_POST['tanggal_monitoring'] ?? '';
+$dudi = trim($_POST['dudi'] ?? '');
 $nama_dudi = trim($_POST['nama_dudi'] ?? '');
 $keterangan = trim($_POST['keterangan'] ?? '');
+
+// === TAMPILKAN NAMA DUDI Dari siswa yang dipilih (strict: hanya bimbingan sendiri) ===
+$siswa_stmt0 = mysqli_prepare($conn, "SELECT dudi_magang FROM siswa WHERE id_siswa = ? AND id_guru = ? LIMIT 1");
+mysqli_stmt_bind_param($siswa_stmt0, "ii", $id_siswa, $id_guru);
+mysqli_stmt_execute($siswa_stmt0);
+$siswa_row = mysqli_fetch_assoc(mysqli_stmt_get_result($siswa_stmt0));
+mysqli_stmt_close($siswa_stmt0);
+$dudi_from_siswa = $siswa_row['dudi_magang'] ?? '';
+// Gunakan dudi dari form jika ada, kalau tidak pakai dari siswa
+$final_dudi = (!empty($dudi)) ? $dudi : $dudi_from_siswa;
 
 
 // ==============================
@@ -23,17 +32,18 @@ $keterangan = trim($_POST['keterangan'] ?? '');
 
 if (
     empty($id_siswa) ||
-    empty($tanggal_bimbingan) ||
-    empty($nama_dudi) ||
+    empty($tanggal_monitoring) ||
+    empty($final_dudi) ||
     empty($keterangan)
 ) {
-    die("Semua data wajib diisi.");
+    header("Location: tambah_monitoring.php?error=" . urlencode("Semua data wajib diisi."));
+    exit;
 }
 
 
 // ==============================
 // CEK SISWA
-// HARUS SISWA YANG DIBIMBING GURU
+// STRICT: hanya siswa monitoring guru ini
 // ==============================
 
 $query = "SELECT id_siswa
@@ -54,9 +64,7 @@ mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
 
-if (mysqli_num_rows($result) === 0) {
-    die("Siswa tidak ditemukan atau bukan siswa bimbingan Anda.");
-}
+if (mysqli_num_rows($result) === 0) abort("Siswa tidak valid", "Siswa bukan monitoring Anda.", "bimbingan.php");
 
 
 // ==============================
@@ -68,12 +76,14 @@ $nama_foto = null;
 if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
 
     if ($_FILES['foto']['error'] !== UPLOAD_ERR_OK) {
-        die("Upload foto gagal.");
+        header("Location: tambah_monitoring.php?error=" . urlencode("Upload foto gagal."));
+        exit;
     }
 
-    // Maksimal 2 MB
-    if ($_FILES['foto']['size'] > 2 * 1024 * 1024) {
-        die("Ukuran foto maksimal 2 MB.");
+    // Maksimal 20 MB
+    if ($_FILES['foto']['size'] > 20 * 1024 * 1024) {
+        header("Location: tambah_monitoring.php?error=" . urlencode("Ukuran foto maksimal 20 MB."));
+        exit;
     }
 
     $nama_file_asli = $_FILES['foto']['name'];
@@ -85,12 +95,13 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
     $ekstensi_diizinkan = ['jpg', 'jpeg', 'png'];
 
     if (!in_array($ekstensi, $ekstensi_diizinkan)) {
-        die("Format foto harus JPG, JPEG, atau PNG.");
+        header("Location: tambah_monitoring.php?error=" . urlencode("Format foto harus JPG, JPEG, atau PNG."));
+        exit;
     }
 
-    $nama_foto = uniqid('bimbingan_', true) . '.' . $ekstensi;
+    $nama_foto = uniqid('monitoring_', true) . '.' . $ekstensi;
 
-    $folder_upload = "../uploads/bimbingan/";
+    $folder_upload = "../uploads/monitoring/";
 
     if (!is_dir($folder_upload)) {
         mkdir($folder_upload, 0777, true);
@@ -99,7 +110,8 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
     $tujuan = $folder_upload . $nama_foto;
 
     if (!move_uploaded_file($_FILES['foto']['tmp_name'], $tujuan)) {
-        die("Foto gagal disimpan.");
+        header("Location: tambah_monitoring.php?error=" . urlencode("Foto gagal disimpan."));
+        exit;
     }
 }
 
@@ -108,11 +120,11 @@ if (isset($_FILES['foto']) && $_FILES['foto']['error'] !== UPLOAD_ERR_NO_FILE) {
 // SIMPAN KE DATABASE
 // ==============================
 
-$query = "INSERT INTO bimbingan
+$query = "INSERT INTO monitoring
           (
               id_guru,
               id_siswa,
-              tanggal_bimbingan,
+              tanggal_monitoring,
               nama_dudi,
               keterangan,
               foto
@@ -126,23 +138,23 @@ mysqli_stmt_bind_param(
     "iissss",
     $id_guru,
     $id_siswa,
-    $tanggal_bimbingan,
-    $nama_dudi,
+    $tanggal_monitoring,
+    $final_dudi,
     $keterangan,
     $nama_foto
 );
 
 if (mysqli_stmt_execute($stmt)) {
 
-    header("Location: riwayat_bimbingan.php?success=1");
+    header("Location: riwayat_bimbingan.php?success=" . urlencode("Dokumentasi monitoring berhasil disimpan."));
     exit;
 
 } else {
 
     // Kalau database gagal, hapus foto yang sudah diupload
-    if ($nama_foto && file_exists("../uploads/bimbingan/" . $nama_foto)) {
-        unlink("../uploads/bimbingan/" . $nama_foto);
+    if ($nama_foto && file_exists("../uploads/monitoring/" . $nama_foto)) {
+        unlink("../uploads/monitoring/" . $nama_foto);
     }
 
-    die("Data gagal disimpan: " . mysqli_error($conn));
+    abort("Gagal menyimpan", "Data gagal disimpan. Silakan coba lagi.", "tambah_monitoring.php");
 }

@@ -3,18 +3,13 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('admin');
 
 
 $id_guru = $_GET['id'] ?? '';
 
-if (empty($id_guru)) {
-    die("ID guru tidak ditemukan.");
-}
+if (empty($id_guru)) abort("ID tidak valid", "ID guru tidak ditemukan.", "guru.php");
 
 $id_guru = (int) $id_guru;
 
@@ -36,11 +31,7 @@ mysqli_stmt_execute($stmtCek);
 
 $resultCek = mysqli_stmt_get_result($stmtCek);
 
-if (mysqli_num_rows($resultCek) === 0) {
-
-    die("Guru tidak ditemukan.");
-
-}
+if (mysqli_num_rows($resultCek) === 0) abort("Guru tidak ditemukan", "Data guru tidak ada.", "guru.php");
 
 
 // Hapus guru
@@ -63,9 +54,6 @@ if (mysqli_stmt_execute($stmt)) {
 
 } else {
 
-    die(
-        "Gagal menghapus guru: "
-        . mysqli_error($conn)
-    );
+    abort("Gagal menghapus", "Gagal menghapus guru. Coba lagi.", "guru.php");
 
 }

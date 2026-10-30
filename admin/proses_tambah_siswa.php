@@ -3,11 +3,8 @@
 session_start();
 
 require_once __DIR__ . "/../config/koneksi.php";
-
-if (!isset($_SESSION['login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
+require_once __DIR__ . "/../includes/helpers.php";
+require_login('admin');
 
 
 $nisn = trim($_POST['nisn'] ?? '');
@@ -16,7 +13,7 @@ $kelas = trim($_POST['kelas'] ?? '');
 $jurusan = trim($_POST['jurusan'] ?? '');
 $dudi_magang = trim($_POST['dudi_magang'] ?? '');
 $password = $_POST['password'] ?? '';
-$id_guru = $_POST['id_guru'] ?? '';
+$id_guru = (int) ($_POST['id_guru'] ?? 0);
 
 
 // Validasi
@@ -26,10 +23,22 @@ if (
     empty($kelas) ||
     empty($jurusan) ||
     empty($dudi_magang) ||
-    empty($password)
+    empty($password) ||
+    $id_guru <= 0
 ) {
-    die("Semua data wajib diisi.");
+    header("Location: tambah_siswa.php?error=" . urlencode("Semua data wajib diisi (termasuk guru pembimbing)."));
+    exit;
 }
+
+// Cek guru pembimbing ada?
+$stmtGuru = mysqli_prepare($conn, "SELECT id_guru FROM guru WHERE id_guru = ?");
+mysqli_stmt_bind_param($stmtGuru, "i", $id_guru);
+mysqli_stmt_execute($stmtGuru);
+if (!mysqli_fetch_assoc(mysqli_stmt_get_result($stmtGuru))) {
+    header("Location: tambah_siswa.php?error=" . urlencode("Guru pembimbing tidak valid."));
+    exit;
+}
+mysqli_stmt_close($stmtGuru);
 
 
 // Cek NISN
@@ -50,7 +59,8 @@ mysqli_stmt_execute($stmtCek);
 $resultCek = mysqli_stmt_get_result($stmtCek);
 
 if (mysqli_num_rows($resultCek) > 0) {
-    die("NISN sudah terdaftar.");
+    header("Location: tambah_siswa.php?error=" . urlencode("NISN sudah terdaftar."));
+    exit;
 }
 
 
@@ -61,73 +71,42 @@ $password_hash = password_hash(
 );
 
 
-// Kalau guru kosong, gunakan NULL
-if ($id_guru === '') {
+// Simpan siswa
+$query = "INSERT INTO siswa
+          (
+              nisn,
+              nama_lengkap,
+              kelas,
+              jurusan,
+              dudi_magang,
+              id_guru,
+              password
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-    $query = "INSERT INTO siswa
-              (
-                  nisn,
-                  nama_lengkap,
-                  kelas,
-                  jurusan,
-                  dudi_magang,
-                  password,
-                  id_guru
-              )
-              VALUES (?, ?, ?, ?, ?, ?, NULL)";
+$stmt = mysqli_prepare($conn, $query);
 
-    $stmt = mysqli_prepare($conn, $query);
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssssss",
-        $nisn,
-        $nama_lengkap,
-        $kelas,
-        $jurusan,
-        $dudi_magang,
-        $password_hash
-    );
-
-} else {
-
-    $id_guru = (int) $id_guru;
-
-    $query = "INSERT INTO siswa
-              (
-                  nisn,
-                  nama_lengkap,
-                  kelas,
-                  jurusan,
-                  dudi_magang,
-                  password,
-                  id_guru
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?)";
-
-    $stmt = mysqli_prepare($conn, $query);
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssssssi",
-        $nisn,
-        $nama_lengkap,
-        $kelas,
-        $jurusan,
-        $dudi_magang,
-        $password_hash,
-        $id_guru
-    );
-}
+mysqli_stmt_bind_param(
+    $stmt,
+    "sssssis",
+    $nisn,
+    $nama_lengkap,
+    $kelas,
+    $jurusan,
+    $dudi_magang,
+    $id_guru,
+    $password_hash
+);
 
 
 if (mysqli_stmt_execute($stmt)) {
 
-    header("Location: siswa.php?success=1");
+    header("Location: siswa.php?success=" . urlencode("Data siswa berhasil ditambahkan."));
     exit;
 
 } else {
 
-    die("Gagal menambahkan siswa: " . mysqli_error($conn));
+    header("Location: tambah_siswa.php?error=" . urlencode("Gagal menambahkan siswa. Coba lagi."));
+    exit;
 
 }
